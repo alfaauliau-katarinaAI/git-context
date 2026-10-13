@@ -23,6 +23,9 @@ python3 git-context --depth 2
 # Write to file instead of stdout
 python3 git-context --files -o context.txt
 
+# Machine-readable JSON (also works with --files and -o)
+python3 git-context --json --files -o context.json
+
 # Any git repo, anywhere
 python3 git-context --dir /path/to/repo
 ```
@@ -55,3 +58,13 @@ If git-context saves you time, consider buying me a coffee:
 
 **BTC:** `bc1qxlj7xlhp7e6v2qw2k6uy7n3z3q3p3k3z3q3p3`
 
+
+## JSON output
+
+`--json` emits one JSON object with `repo_name`, `generated`, `path`, `git`,
+`commits` (one-line strings), `branches` (strings), and `tree` (formatted text).
+`--files` adds a `files` string using the same bounded content formatter as text
+mode. `--log 0` produces an empty commits array. With `-o`, JSON goes only to
+the UTF-8 output file; the completion notice goes to stderr. Without `--json`,
+existing Markdown output is unchanged. Invalid repositories retain the existing
+nonzero exit status and stderr error.
