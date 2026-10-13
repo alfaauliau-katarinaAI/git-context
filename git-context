@@ -8,6 +8,7 @@ Usage:  git context [--depth N] [--files] [--log N] [--output file] [--dir <path
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -128,12 +129,38 @@ def main():
     p.add_argument('--log', type=int, default=20, help='Number of recent commits (default: 20, 0=skip)')
     p.add_argument('--output', '-o', help='Write to file instead of stdout')
     p.add_argument('--dir', default=os.getcwd(), help='Target directory (default: cwd)')
+    p.add_argument('--json', action='store_true', help='Emit machine-readable JSON instead of Markdown')
     args = p.parse_args()
 
     target = os.path.abspath(args.dir)
     if not os.path.isdir(os.path.join(target, '.git')):
         print(f"❌ Not a git repo: {target}", file=sys.stderr)
         sys.exit(1)
+
+    if args.json:
+        result = {
+            "repo_name": os.path.basename(target),
+            "generated": datetime.now().isoformat(timespec="seconds"),
+            "path": target,
+            "git": {
+                "branch": run(["git", "rev-parse", "--abbrev-ref", "HEAD"], target),
+                "remote": run(["git", "remote", "get-url", "origin"], target),
+                "unstaged": run(["git", "diff", "--stat"], target),
+                "staged": run(["git", "diff", "--cached", "--stat"], target),
+            },
+            "commits": run(["git", "log", f"--max-count={args.log}", "--oneline"], target).splitlines() if args.log > 0 else [],
+            "branches": run(["git", "branch", "-a"], target).splitlines(),
+            "tree": tree(target, ignored=DEFAULT_IGNORE, depth=args.depth),
+        }
+        if args.files:
+            result["files"] = file_contents(target)
+        output = json.dumps(result, ensure_ascii=False, indent=2)
+        if args.output:
+            Path(args.output).write_text(output + "\n", encoding="utf-8")
+            print(f"Written to {args.output}", file=sys.stderr)
+        else:
+            print(output)
+        return
 
     repo_name = os.path.basename(target)
     sections = []
