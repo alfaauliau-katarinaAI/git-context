@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import fnmatch
+from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 from datetime import datetime
 
@@ -31,6 +32,17 @@ def run(cmd, cwd=None):
         return r.stdout.strip() if r.returncode == 0 else ""
     except Exception:
         return ""
+
+def safe_remote(value):
+    # Context is commonly pasted into external tools: never include URL auth.
+    if '://' not in value:
+        return value
+    try:
+        parts = urlsplit(value)
+        host = parts.netloc.rsplit('@', 1)[-1]
+        return urlunsplit((parts.scheme, host, parts.path, '', ''))
+    except ValueError:
+        return '[remote URL omitted: invalid URL]'
 
 def size_fmt(n):
     if n > 1_000_000: return f"{n/1_000_000:.1f}MB"
@@ -147,7 +159,7 @@ def main():
             "path": target,
             "git": {
                 "branch": run(["git", "rev-parse", "--abbrev-ref", "HEAD"], target),
-                "remote": run(["git", "remote", "get-url", "origin"], target),
+                "remote": safe_remote(run(["git", "remote", "get-url", "origin"], target)),
                 "unstaged": run(["git", "diff", "--stat"], target),
                 "staged": run(["git", "diff", "--cached", "--stat"], target),
             },
@@ -174,7 +186,7 @@ def main():
 
     # Git info
     branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], target)
-    remote = run(["git", "remote", "get-url", "origin"], target)
+    remote = safe_remote(run(["git", "remote", "get-url", "origin"], target))
     sections.append(f"## Git Info\n- Branch: `{branch}`")
     sections.append(f"- Remote: {remote}")
     
