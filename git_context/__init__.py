@@ -54,7 +54,7 @@ def tree(path, prefix="", ignored=DEFAULT_IGNORE, depth=3, current_depth=0):
         return ""
     for e in entries:
         fp = os.path.join(path, e)
-        if e.startswith('.') or should_ignore(e, ignored):
+        if e.startswith('.') or should_ignore(e, ignored) or os.path.islink(fp):
             continue
         is_dir = os.path.isdir(fp)
         items.append((e, fp, is_dir))
@@ -90,8 +90,11 @@ def file_contents(path, ignored=DEFAULT_IGNORE, max_total=15000):
     result = ""
     total = 0
     for root, dirs, files in os.walk(path):
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ignored and d != 'node_modules']
+        dirs[:] = [d for d in dirs if not d.startswith('.') and not should_ignore(d, ignored) and not os.path.islink(os.path.join(root, d))]
         for f in sorted(files):
+            fp = os.path.join(root, f)
+            if f.startswith('.') or should_ignore(f, ignored) or os.path.islink(fp):
+                continue
             ext = os.path.splitext(f)[1].lower()
             if f.endswith('.min.js') or f.endswith('.min.css'):
                 continue
