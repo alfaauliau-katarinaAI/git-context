@@ -56,6 +56,19 @@ class JsonCLI(unittest.TestCase):
                         self.assertNotIn('linked.py', result.stdout)
                         self.assertNotIn('broken.py', result.stdout)
 
+    def test_remote_credentials_are_not_exported(self):
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(['git', 'init', '-q', d], check=True)
+            subprocess.run(['git', '-C', d, 'remote', 'add', 'origin',
+                            'https://synthetic-user:AUTH_SENTINEL@example.test/repo.git?token=QUERY_SENTINEL#FRAGMENT_SENTINEL'], check=True)
+            for entry in ([str(ROOT / 'git-context')], ['-m', 'git_context']):
+                for mode in ([], ['--json']):
+                    with self.subTest(entry=entry, mode=mode):
+                        result = subprocess.run([sys.executable, *entry, '--dir', d, '--log', '0', *mode], cwd=ROOT, capture_output=True, text=True, check=True)
+                        self.assertIn('https://example.test/repo.git', result.stdout)
+                        for secret in ('synthetic-user', 'AUTH_SENTINEL', 'QUERY_SENTINEL', 'FRAGMENT_SENTINEL'):
+                            self.assertNotIn(secret, result.stdout)
+
     def test_invalid_repo(self):
         with tempfile.TemporaryDirectory() as d:
             r = subprocess.run([sys.executable, '-m', 'git_context', '--json', '--dir', d], cwd=ROOT, capture_output=True, text=True)
