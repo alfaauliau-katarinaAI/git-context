@@ -32,6 +32,30 @@ class JsonCLI(unittest.TestCase):
                     r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=True)
                     self.assertTrue(r.stdout.startswith('# git-context:'))
 
+    def test_file_export_excludes_hidden_ignored_and_symlink_targets(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as outside:
+            repo = pathlib.Path(d)
+            subprocess.run(['git', 'init', '-q', d], check=True)
+            (repo / 'safe.py').write_text('SAFE_SOURCE', encoding='utf-8')
+            (repo / '.private.json').write_text('HIDDEN_SENTINEL', encoding='utf-8')
+            ignored = repo / 'generated.egg-info'
+            ignored.mkdir()
+            (ignored / 'info.py').write_text('IGNORED_SENTINEL', encoding='utf-8')
+            external = pathlib.Path(outside) / 'external.py'
+            external.write_text('EXTERNAL_SENTINEL', encoding='utf-8')
+            (repo / 'linked.py').symlink_to(external)
+            (repo / 'broken.py').symlink_to(pathlib.Path(outside) / 'absent.py')
+            (repo / 'linked_dir').symlink_to(outside, target_is_directory=True)
+            for entry in ([str(ROOT / 'git-context')], ['-m', 'git_context']):
+                for mode in ([], ['--json']):
+                    with self.subTest(entry=entry, mode=mode):
+                        result = subprocess.run([sys.executable, *entry, '--dir', d, '--files', '--log', '0', *mode], cwd=ROOT, capture_output=True, text=True, check=True)
+                        self.assertIn('SAFE_SOURCE', result.stdout)
+                        for sentinel in ('HIDDEN_SENTINEL', 'IGNORED_SENTINEL', 'EXTERNAL_SENTINEL'):
+                            self.assertNotIn(sentinel, result.stdout)
+                        self.assertNotIn('linked.py', result.stdout)
+                        self.assertNotIn('broken.py', result.stdout)
+
     def test_invalid_repo(self):
         with tempfile.TemporaryDirectory() as d:
             r = subprocess.run([sys.executable, '-m', 'git_context', '--json', '--dir', d], cwd=ROOT, capture_output=True, text=True)
